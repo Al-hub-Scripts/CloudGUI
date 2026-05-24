@@ -10,6 +10,7 @@ return function(shared)
     local CoreGui = shared.Services.CoreGui
     local Cloud  = shared.Cloud
     local SLOW   = shared.SLOW
+    local anim   = shared.anim
 
     local TOAST_W = 260
     local TOAST_H = 64
@@ -80,7 +81,7 @@ return function(shared)
             TextColor3 = theme.Text,
             Parent = frame,
         })
-        create("TextLabel", {
+        local body = create("TextLabel", {
             Name = "Body",
             BackgroundTransparency = 1,
             Position = UDim2.new(0, 14, 0, 28),
@@ -94,10 +95,31 @@ return function(shared)
             TextColor3 = theme.TextDim,
             Parent = frame,
         })
+        if anim then
+            anim.typewriter(body, opts.Text or "", math.min((duration or 4) * 0.35, 1.4))
+        end
+
+        -- Progress bar draining along the bottom edge over Duration.
+        local progress = create("Frame", {
+            Name = "Progress",
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(0, 0, 1, 0),
+            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = theme.NotificationBar,
+            BorderSizePixel = 0,
+            Parent = frame,
+        })
 
         local toast = { frame = frame }
         table.insert(active, 1, toast)
         reflow()
+
+        if anim then
+            local sc = anim.ensureScale(frame)
+            sc.Scale = 0.85
+            anim.tween(sc, { Scale = 1 }, "softBack")
+            anim.progress(progress, duration)
+        end
 
         local dismissed = false
         local function dismiss()

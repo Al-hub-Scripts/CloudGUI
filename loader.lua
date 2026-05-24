@@ -34,9 +34,10 @@ local function fetch(file)
     return chunk()
 end
 
--- Order matters: core defines helpers + window, components/config register
--- methods, notifications attaches Cloud:notify.
+-- Order matters: core defines helpers + window, animations installs the motion
+-- layer, components/config register methods, notifications attaches Cloud:notify.
 fetch("core.lua")(shared)
+fetch("animations.lua")(shared)
 fetch("components.lua")(shared)
 fetch("notifications.lua")(shared)
 fetch("config.lua")(shared)

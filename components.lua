@@ -11,11 +11,23 @@ return function(shared)
     local flags  = shared.flags
     local UIS    = shared.Services.UIS
     local SLOW   = shared.SLOW
+    local anim   = shared.anim
 
     shared.flagControls = shared.flagControls or {}
     local flagControls = shared.flagControls
 
     local C = {}
+
+    local function intro(obj, ctx)
+        if anim then anim.intro(obj, ctx) end
+    end
+
+    -- Tween with a named easing preset when the animation layer is present,
+    -- else fall back to the plain slow tween.
+    local function atween(obj, props, preset)
+        if anim then return anim.tween(obj, props, preset) end
+        return tween(obj, props)
+    end
 
     --------------------------------------------------------------------------
     -- helpers
@@ -28,7 +40,12 @@ return function(shared)
     end
 
     local function makeRow(ctx, height)
-        return create("Frame", {
+        local stroke = create("UIStroke", {
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+            Color = ctx.theme.Accent,
+            Transparency = 0.7,
+        })
+        local row = create("Frame", {
             Name = "Row",
             Size = UDim2.new(1, 0, 0, height or 36),
             BackgroundColor3 = ctx.theme.Button,
@@ -37,12 +54,9 @@ return function(shared)
             Parent = ctx.container,
         }, {
             create("UICorner", { CornerRadius = UDim.new(0, 6) }),
-            create("UIStroke", {
-                ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-                Color = ctx.theme.Accent,
-                Transparency = 0.7,
-            }),
+            stroke,
         })
+        return row, stroke
     end
 
     local function rowLabel(row, theme, text)
@@ -67,7 +81,7 @@ return function(shared)
         opts = opts or {}
         local theme = ctx.theme
 
-        local row = makeRow(ctx, 36)
+        local row, stroke = makeRow(ctx, 36)
         local btn = create("TextButton", {
             Name = "Button",
             BackgroundTransparency = 1,
@@ -79,22 +93,24 @@ return function(shared)
             Parent = row,
         })
 
-        btn.MouseEnter:Connect(function()
-            tween(row, { BackgroundColor3 = theme.ButtonHover, BackgroundTransparency = 0.3 })
-        end)
-        btn.MouseLeave:Connect(function()
-            tween(row, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
-        end)
-        btn.MouseButton1Down:Connect(function()
-            tween(row, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 }, 0.2)
-        end)
-        btn.MouseButton1Up:Connect(function()
-            tween(row, { BackgroundColor3 = theme.ButtonHover, BackgroundTransparency = 0.3 })
-        end)
+        if anim then
+            anim.hover(btn, row, theme, { stroke = stroke })
+            anim.press(btn, row, theme)
+        else
+            btn.MouseEnter:Connect(function()
+                tween(row, { BackgroundColor3 = theme.ButtonHover, BackgroundTransparency = 0.3 })
+            end)
+            btn.MouseLeave:Connect(function()
+                tween(row, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
+            end)
+        end
+
         btn.MouseButton1Click:Connect(function()
+            if anim then anim.ripple(row, theme) end
             if opts.Callback then opts.Callback() end
         end)
 
+        intro(row, ctx)
         return { instance = row }
     end
 
@@ -137,11 +153,12 @@ return function(shared)
             state = value and true or false
             if state then
                 tween(pill, { BackgroundColor3 = theme.Accent, BackgroundTransparency = 0 })
-                tween(knob, { Position = UDim2.new(1, -18, 0.5, 0) })
+                atween(knob, { Position = UDim2.new(1, -18, 0.5, 0) }, "softBack")
             else
                 tween(pill, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
-                tween(knob, { Position = UDim2.new(0, 2, 0.5, 0) })
+                atween(knob, { Position = UDim2.new(0, 2, 0.5, 0) }, "softBack")
             end
+            if fire ~= false and anim then anim.pop(knob, 0.18) end
             if opts.Flag ~= nil then flags[opts.Flag] = state end
             if fire ~= false and opts.Callback then opts.Callback(state) end
         end
@@ -160,6 +177,7 @@ return function(shared)
         function api.Set(value) setState(value) end
         register(opts, state, api.Set)
         setState(state, false)
+        intro(row, ctx)
         return api
     end
 
@@ -217,16 +235,32 @@ return function(shared)
         }, {
             create("UICorner", { CornerRadius = UDim.new(1, 0) }),
         })
+        local knob = create("Frame", {
+            Name = "Knob",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.new(0, 14, 0, 14),
+            BackgroundColor3 = theme.BG,
+            BorderSizePixel = 0,
+            ZIndex = 3,
+            Parent = track,
+        }, {
+            create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+            create("UIStroke", { Color = theme.Accent, Transparency = 0.2 }),
+        })
 
         local function setValue(v, fire, animate)
             v = round(math.clamp(v, min, max))
             value = v
-            local alpha = (max > min) and (v - min) / (max - min) or 0
-            local props = { Size = UDim2.new(math.clamp(alpha, 0, 1), 0, 1, 0) }
+            local alpha = math.clamp((max > min) and (v - min) / (max - min) or 0, 0, 1)
+            local fillProps = { Size = UDim2.new(alpha, 0, 1, 0) }
+            local knobProps = { Position = UDim2.new(alpha, 0, 0.5, 0) }
             if animate == false then
-                fill.Size = props.Size
+                fill.Size = fillProps.Size
+                knob.Position = knobProps.Position
             else
-                tween(fill, props)
+                tween(fill, fillProps)
+                atween(knob, knobProps, "softBack")
             end
             valueLabel.Text = tostring(v)
             if opts.Flag ~= nil then flags[opts.Flag] = v end
@@ -243,6 +277,7 @@ return function(shared)
             if input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
+                if anim then anim.pop(knob, 0.25) end
                 updateFromX(input.Position.X)
             end
         end)
@@ -263,6 +298,7 @@ return function(shared)
         function api.Set(v) setValue(v) end
         register(opts, value, api.Set)
         setValue(value, false, false)
+        intro(row, ctx)
         return api
     end
 
@@ -392,22 +428,25 @@ return function(shared)
             end
         end
 
+        local optionButtons = {}
+        local orderedButtons = {}
+
         local open = false
         local function fullHeight()
             return #options * (optHeight + 2) + 6
         end
         local function setOpen(value)
             open = value
-            if open then
-                tween(holder, { Size = UDim2.new(1, 0, 0, fullHeight()) })
-                tween(arrow, { Rotation = 180 })
+            if anim then
+                anim.expand(holder, open, fullHeight())
+                anim.arrow(arrow, open)
+                if open then anim.staggerPop(orderedButtons, 0.05) end
             else
-                tween(holder, { Size = UDim2.new(1, 0, 0, 0) })
-                tween(arrow, { Rotation = 0 })
+                tween(holder, { Size = UDim2.new(1, 0, 0, open and fullHeight() or 0) })
+                tween(arrow, { Rotation = open and 180 or 0 })
             end
         end
 
-        local optionButtons = {}
         local function refreshHighlights()
             for name, b in pairs(optionButtons) do
                 local on = multi and selected[name] or (selected == name)
@@ -427,6 +466,7 @@ return function(shared)
         local function buildOptions()
             for _, b in pairs(optionButtons) do b:Destroy() end
             optionButtons = {}
+            orderedButtons = {}
             for i, name in ipairs(options) do
                 local ob = create("TextButton", {
                     Name = name,
@@ -444,7 +484,9 @@ return function(shared)
                     create("UICorner", { CornerRadius = UDim.new(0, 5) }),
                 })
                 optionButtons[name] = ob
+                table.insert(orderedButtons, ob)
                 ob.MouseButton1Click:Connect(function()
+                    if anim then anim.ripple(ob, theme) end
                     if multi then
                         selected[name] = not selected[name] or nil
                         refreshHighlights()
@@ -488,6 +530,7 @@ return function(shared)
         buildOptions()
         register(opts, currentValue(), function(v) api.Set(v) end)
         valueLabel.Text = displayText()
+        intro(container, ctx)
         return api
     end
 
@@ -537,11 +580,14 @@ return function(shared)
         btn.MouseButton1Click:Connect(function()
             listening = true
             btn.Text = "..."
+            tween(btn, { BackgroundColor3 = theme.Accent, BackgroundTransparency = 0 })
         end)
 
         UIS.InputBegan:Connect(function(input, gameProcessed)
             if listening and input.UserInputType == Enum.UserInputType.Keyboard then
                 listening = false
+                tween(btn, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
+                if anim then anim.pop(btn, 0.12) end
                 setKey(input.KeyCode)
             elseif not gameProcessed and not listening and current
                 and input.KeyCode == current then
@@ -552,6 +598,7 @@ return function(shared)
         local api = { instance = row }
         function api.Set(key) setKey(key, false) end
         register(opts, current, function(k) setKey(k) end)
+        intro(row, ctx)
         return api
     end
 
@@ -565,6 +612,7 @@ return function(shared)
         local row = makeRow(ctx, 36)
         rowLabel(row, theme, opts.Text)
 
+        local boxStroke = create("UIStroke", { Color = theme.Accent, Transparency = 0.7 })
         local box = create("TextBox", {
             Name = "Box",
             AnchorPoint = Vector2.new(1, 0.5),
@@ -584,6 +632,7 @@ return function(shared)
         }, {
             create("UICorner", { CornerRadius = UDim.new(0, 5) }),
             create("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }),
+            boxStroke,
         })
 
         local function setText(text, fire)
@@ -594,9 +643,11 @@ return function(shared)
 
         box.Focused:Connect(function()
             tween(box, { BackgroundColor3 = theme.ButtonHover, BackgroundTransparency = 0 })
+            if anim then anim.focusGlow(boxStroke, true, theme) end
         end)
         box.FocusLost:Connect(function()
             tween(box, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
+            if anim then anim.focusGlow(boxStroke, false, theme) end
             setText(box.Text)
         end)
 
@@ -604,6 +655,7 @@ return function(shared)
         function api.Set(text) setText(text, false) end
         api.Get = function() return box.Text end
         register(opts, box.Text, api.Set)
+        intro(row, ctx)
         return api
     end
 
@@ -831,7 +883,12 @@ return function(shared)
         local open = false
         header.MouseButton1Click:Connect(function()
             open = not open
-            tween(holder, { Size = UDim2.new(1, 0, 0, open and 108 or 0) })
+            if anim then
+                anim.expand(holder, open, 108)
+                anim.pop(swatch, 0.12)
+            else
+                tween(holder, { Size = UDim2.new(1, 0, 0, open and 108 or 0) })
+            end
         end)
 
         local api = { instance = container }
@@ -844,6 +901,7 @@ return function(shared)
         end
         register(opts, color, function(c) api.Set(c); if opts.Callback then opts.Callback(color) end end)
         applyVisual()
+        intro(container, ctx)
         return api
     end
 
@@ -868,6 +926,7 @@ return function(shared)
         })
         local api = { instance = lbl }
         function api.Set(t) lbl.Text = t end
+        intro(lbl, ctx)
         return api
     end
 
@@ -901,6 +960,7 @@ return function(shared)
             BorderSizePixel = 0,
             Parent = holder,
         })
+        intro(holder, ctx)
         return { instance = holder }
     end
 
@@ -923,6 +983,7 @@ return function(shared)
             BorderSizePixel = 0,
             Parent = holder,
         })
+        intro(holder, ctx)
         return { instance = holder }
     end
 
@@ -985,6 +1046,7 @@ return function(shared)
 
         local api = { instance = row }
         function api.Set(t) bodyLbl.Text = t end
+        intro(row, ctx)
         return api
     end
 

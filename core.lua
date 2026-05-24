@@ -142,9 +142,10 @@ return function(shared)
             local title = create("TextLabel", {
                 Name = "Title",
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.025, 0, 0.015, 0),
-                Size = UDim2.new(0.95, 0, 0.075, 0),
+                Position = UDim2.new(0.025, 0, 0.02, 0),
+                Size = UDim2.new(0.95, 0, 0.07, 0),
                 TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Bottom,
                 Text = titletext,
                 FontFace = font,
                 TextScaled = true,
@@ -155,9 +156,10 @@ return function(shared)
             local subtitle = create("TextLabel", {
                 Name = "SubTitle",
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.025, 0, 0.095, 0),
-                Size = UDim2.new(0.95, 0, 0.05, 0),
+                Position = UDim2.new(0.025, 0, 0.092, 0),
+                Size = UDim2.new(0.95, 0, 0.038, 0),
                 TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
                 Text = subtitletext,
                 FontFace = font,
                 TextScaled = true,
@@ -195,6 +197,9 @@ return function(shared)
                     Transparency = 0.6,
                     Parent = dragbar,
                 })
+                if shared.anim then
+                    shared.anim.glowStroke(dragbaroutline, 0.45, 0.75, 3.0)
+                end
 
                 local minbutton = create("TextButton", {
                     Name = "MinButton",
@@ -304,17 +309,23 @@ return function(shared)
         ------------------------------------------------------------------------
         local function show(entry)
             if window.active == entry then return end
+            local anim = shared.anim
 
             if window.active then
                 window.active.page.Visible = false
-                tween(window.active.button, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
+                tween(window.active.tabButton, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
             end
 
             window.active = entry
             entry.page.Visible = true
-            entry.page.Position = UDim2.new(0, 0, 0, 14)
-            tween(entry.page, { Position = UDim2.new(0, 0, 0, 0) })
-            tween(entry.button, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
+            tween(entry.tabButton, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
+            if anim then
+                anim.revealPage(entry.page)
+                anim.pop(entry.tabButton, 0.06)
+            else
+                entry.page.Position = UDim2.new(0, 0, 0, 14)
+                tween(entry.page, { Position = UDim2.new(0, 0, 0, 0) })
+            end
         end
 
         --------------------------------------------------------------------------
@@ -341,7 +352,7 @@ return function(shared)
                     Transparency = 0.7,
                 }),
             })
-            entry.button = tab
+            entry.tabButton = tab
 
             tab.MouseEnter:Connect(function()
                 if window.active ~= entry then
