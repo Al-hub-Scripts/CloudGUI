@@ -5,7 +5,7 @@
 -- and returns the fully assembled Cloud library.
 
 -- >>> Set this to the raw base URL the modules are hosted at (no trailing slash).
-local BASE_URL = "{{BASE_URL}}"
+local BASE_URL = "https://raw.githubusercontent.com/Al-hub-Scripts/CloudGUI/refs/heads/main"
 
 local shared = {}
 
