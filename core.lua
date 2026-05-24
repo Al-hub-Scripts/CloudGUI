@@ -124,7 +124,7 @@ return function(shared)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 0, 0.5, 0),
             BackgroundColor3 = theme.BG,
-            BackgroundTransparency = 0.3,
+            BackgroundTransparency = 0.15,
             BorderSizePixel = 0,
             Parent = gui,
         }, {
@@ -142,8 +142,8 @@ return function(shared)
             local title = create("TextLabel", {
                 Name = "Title",
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.007, 0, 0.005, 0),
-                Size = UDim2.new(1, 0, 0.05, 0),
+                Position = UDim2.new(0.025, 0, 0.015, 0),
+                Size = UDim2.new(0.95, 0, 0.075, 0),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = titletext,
                 FontFace = font,
@@ -155,8 +155,8 @@ return function(shared)
             local subtitle = create("TextLabel", {
                 Name = "SubTitle",
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.007, 0, 0.05, 0),
-                Size = UDim2.new(1, 0, 0.05, 0),
+                Position = UDim2.new(0.025, 0, 0.095, 0),
+                Size = UDim2.new(0.95, 0, 0.05, 0),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Text = subtitletext,
                 FontFace = font,
@@ -165,23 +165,24 @@ return function(shared)
                 Parent = frame,
             })
 
-            -- Holder that every tab's content CanvasGroup is parented into.
+            -- Holder that every tab's content page is parented into.
             local content = create("Frame", {
                 Name = "Content",
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.02, 0, 0.12, 0),
-                Size = UDim2.new(0.96, 0, 0.84, 0),
+                ClipsDescendants = true,
+                Position = UDim2.new(0.02, 0, 0.16, 0),
+                Size = UDim2.new(0.96, 0, 0.8, 0),
                 Parent = frame,
             })
             window.content = content
 
             local dragbar = create("Frame", {
                 Name = "DragBar",
-                Size = UDim2.new(0.2, 0, 0.03, 0),
+                Size = UDim2.new(0.26, 0, 0.03, 0),
                 Position = UDim2.new(0.5, 0, 0.84, 0),
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 BackgroundColor3 = theme.BG,
-                BackgroundTransparency = 0.3,
+                BackgroundTransparency = 0.15,
                 Parent = gui,
             }, {
                 create("UICorner", { CornerRadius = UDim.new(0, 5) }),
@@ -243,44 +244,31 @@ return function(shared)
                 })
 
                 ----------------------------------------------------------------
-                -- Drag system: track delta for THIS frame only, retarget a
-                -- continuously-lerped position on RenderStepped. Keeps the slow,
-                -- buttery feel without spawning a tween per mouse move.
+                -- Drag system: spawn a slow 0.7s Quad/Out tween toward the new
+                -- position on every mouse move, so the frame trails the cursor
+                -- with that soft, lagging cloud feel.
                 ----------------------------------------------------------------
                 local dragging = false
-                local mousestart, framestart, barstart
-                local frametarget, bartarget
-
+                local mousestart, framestart, dragbarstart
                 draghitbox.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1
-                        or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging   = true
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        dragging = true
                         mousestart = input.Position
                         framestart = frame.Position
-                        barstart   = dragbar.Position
-                        frametarget = frame.Position
-                        bartarget   = dragbar.Position
+                        dragbarstart = dragbar.Position
                     end
                 end)
                 UIS.InputChanged:Connect(function(input)
-                    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-                        or input.UserInputType == Enum.UserInputType.Touch) then
+                    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement) then
                         local distance = input.Position - mousestart
-                        frametarget = framestart + UDim2.fromOffset(distance.X, distance.Y)
-                        bartarget   = barstart + UDim2.fromOffset(distance.X, distance.Y)
+                        local tsinfo = TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                        TS:Create(frame, tsinfo, {Position = framestart + UDim2.new(0, distance.X, 0, distance.Y)}):Play()
+                        TS:Create(dragbar, tsinfo, {Position = dragbarstart + UDim2.new(0, distance.X, 0, distance.Y)}):Play()
                     end
                 end)
                 UIS.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1
-                        or input.UserInputType == Enum.UserInputType.Touch then
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
                         dragging = false
-                    end
-                end)
-                RunService.RenderStepped:Connect(function(dt)
-                    if frametarget and gui.Parent then
-                        local alpha = 1 - math.exp(-dt * 6)
-                        frame.Position   = frame.Position:Lerp(frametarget, alpha)
-                        dragbar.Position = dragbar.Position:Lerp(bartarget, alpha)
                     end
                 end)
 
@@ -289,10 +277,11 @@ return function(shared)
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     Position = UDim2.new(0.01, 0, 0.1, 0),
-                    Size = UDim2.new(0.65, 0, 0.95, 0),
+                    Size = UDim2.new(0.78, 0, 0.95, 0),
                     CanvasSize = UDim2.new(0, 0, 0, 0),
                     ScrollingDirection = Enum.ScrollingDirection.X,
                     ScrollBarThickness = 0,
+                    ZIndex = 3,
                     Parent = dragbar,
                 })
                 window.tabbar = tabbar
@@ -309,26 +298,22 @@ return function(shared)
                     end)
 
         ------------------------------------------------------------------------
-        -- Tab switching: each tab owns a CanvasGroup so the whole content fades
-        -- as one. Show fades the chosen tab in and the previous one out.
+        -- Tab switching: each tab owns a ScrollingFrame page. Show hides the old
+        -- page, reveals the new one with a soft upward settle, and marks the
+        -- active tab button.
         ------------------------------------------------------------------------
         local function show(entry)
             if window.active == entry then return end
 
             if window.active then
-                local old = window.active
-                tween(old.canvas, { GroupTransparency = 1 })
-                tween(old.button, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
-                task.delay(SLOW, function()
-                    if window.active ~= old then
-                        old.canvas.Visible = false
-                    end
-                end)
+                window.active.page.Visible = false
+                tween(window.active.button, { BackgroundColor3 = theme.Button, BackgroundTransparency = 0.5 })
             end
 
             window.active = entry
-            entry.canvas.Visible = true
-            tween(entry.canvas, { GroupTransparency = 0 })
+            entry.page.Visible = true
+            entry.page.Position = UDim2.new(0, 0, 0, 14)
+            tween(entry.page, { Position = UDim2.new(0, 0, 0, 0) })
             tween(entry.button, { BackgroundColor3 = theme.ButtonActive, BackgroundTransparency = 0.2 })
         end
 
@@ -369,41 +354,32 @@ return function(shared)
                 end
             end)
 
-            local canvas = create("CanvasGroup", {
-                Name = name .. "Content",
+            local page = create("ScrollingFrame", {
+                Name = name .. "Page",
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
-                GroupTransparency = 1,
+                CanvasSize = UDim2.new(0, 0, 0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                ScrollBarThickness = 3,
+                ScrollBarImageColor3 = theme.Accent,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
                 Visible = false,
                 Parent = content,
+            }, {
+                create("UIListLayout", {
+                    Padding = UDim.new(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                }),
+                create("UIPadding", {
+                    PaddingTop = UDim.new(0, 4),
+                    PaddingLeft = UDim.new(0, 4),
+                    PaddingRight = UDim.new(0, 6),
+                    PaddingBottom = UDim.new(0, 4),
+                }),
             })
-            entry.canvas = canvas
-
-                local scroll = create("ScrollingFrame", {
-                    Name = "Items",
-                    Size = UDim2.new(1, 0, 1, 0),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    CanvasSize = UDim2.new(0, 0, 0, 0),
-                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                    ScrollBarThickness = 2,
-                    ScrollBarImageColor3 = theme.Accent,
-                    ScrollingDirection = Enum.ScrollingDirection.Y,
-                    Parent = canvas,
-                }, {
-                    create("UIListLayout", {
-                        Padding = UDim.new(0, 6),
-                        SortOrder = Enum.SortOrder.LayoutOrder,
-                    }),
-                    create("UIPadding", {
-                        PaddingTop = UDim.new(0, 4),
-                        PaddingLeft = UDim.new(0, 4),
-                        PaddingRight = UDim.new(0, 4),
-                        PaddingBottom = UDim.new(0, 4),
-                    }),
-                })
-            entry.container = scroll
+            entry.page = page
+            entry.container = page
 
             tab.MouseButton1Click:Connect(function()
                 show(entry)
@@ -411,7 +387,7 @@ return function(shared)
 
             -- Context handed to every component builder.
             local ctx = {
-                container = scroll,
+                container = page,
                 theme     = theme,
                 shared    = shared,
                 window    = window,
