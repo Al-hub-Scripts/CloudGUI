@@ -1,9 +1,11 @@
 -- test.lua
--- Feature test / demo for the Cloud GUI library. Run this in an executor:
+-- Comprehensive feature test / demo for the Cloud GUI library. Run in an executor:
 --   loadstring(game:HttpGet("https://raw.githubusercontent.com/Al-hub-Scripts/CloudGUI/refs/heads/main/test.lua"))()
--- It loads the library through the single loader, then builds one window that
--- touches every component, the notification queue, theme swapping, and the
--- full preset save/load round-trip.
+--
+-- This exercises EVERY public feature: all components and their option variants,
+-- multi-tab switching, the notification queue, theme swapping (a second window),
+-- and the programmatic APIs (component :Set / :Get, Cloud.flags, and the
+-- savePreset / loadPreset / listPresets preset round-trip).
 
 local Cloud = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Al-hub-Scripts/CloudGUI/refs/heads/main/loader.lua"
@@ -12,150 +14,139 @@ local Cloud = loadstring(game:HttpGet(
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
-local win  = Cloud:frame("Cloud", "feature test build", Cloud.themes.Cloud)
-local main = win:tab("main")
-local vis  = win:tab("visuals")
-local sets = win:tab("settings")
+local function humanoid()
+    local char = player.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local win  = Cloud:frame("Cloud", "comprehensive feature test", Cloud.themes.Cloud)
+local combat   = win:tab("combat")
+local movement = win:tab("movement")
+local visuals  = win:tab("visuals")
+local config   = win:tab("config")
+
+-- Handles kept so the config tab can drive them programmatically via :Set.
+local handles = {}
 
 ----------------------------------------------------------------------
--- main tab: the core interactive components
+-- COMBAT: buttons, toggles, keybinds
 ----------------------------------------------------------------------
-main:section("Buttons & Toggles")
+combat:section("Actions")
+combat:button({ Text = "Kill All (demo)", Callback = function()
+    Cloud:notify({ Title = "Combat", Text = "Kill All triggered.", Duration = 3 })
+end })
+combat:button({ Text = "Reset Character", Callback = function()
+    if player.Character then player.Character:BreakJoints() end
+end })
 
-main:button({
-    Text = "Notify me",
-    Callback = function()
-        Cloud:notify({ Title = "Button", Text = "You clicked the button.", Duration = 4 })
-    end,
-})
+combat:section("Toggles")
+handles.god = combat:toggle({ Text = "God Mode", Flag = "godmode", Default = false,
+    Callback = function(s) Cloud:notify({ Title = "God Mode", Text = s and "ON" or "OFF", Duration = 2 }) end })
+combat:toggle({ Text = "Auto Parry", Flag = "autoparry", Default = true })
+combat:toggle({ Text = "Kill Aura", Flag = "killaura", Default = false })
+combat:toggle({ Text = "Infinite Ammo", Flag = "infammo", Default = false })
 
-main:toggle({
-    Text = "God Mode",
-    Flag = "godmode",
-    Default = false,
-    Callback = function(state)
-        Cloud:notify({ Title = "God Mode", Text = state and "ON" or "OFF", Duration = 3 })
-    end,
-})
+combat:section("Tuning")
+handles.range = combat:slider({ Text = "Hit Range", Min = 5, Max = 100, Default = 20, Flag = "range" })
+combat:slider({ Text = "Crit Chance", Min = 0, Max = 1, Default = 0.25, Decimals = 2, Flag = "crit" })
 
-main:section("Sliders")
-
-main:slider({
-    Text = "WalkSpeed",
-    Min = 16, Max = 200, Default = 16,
-    Flag = "ws",
-    Callback = function(value)
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = value end
-    end,
-})
-
-main:slider({
-    Text = "FOV",
-    Min = 70, Max = 120, Default = 70, Decimals = 0,
-    Flag = "fov",
-    Callback = function(value)
-        workspace.CurrentCamera.FieldOfView = value
-    end,
-})
-
-main:divider()
-
-main:section("Selection")
-
-main:dropdown({
-    Text = "Single mode",
-    Options = { "Walk", "Run", "Fly" },
-    Default = "Walk",
-    Multi = false,
-    Flag = "mode",
-    Callback = function(choice)
-        Cloud:notify({ Title = "Mode", Text = "Picked " .. tostring(choice), Duration = 3 })
-    end,
-})
-
-main:dropdown({
-    Text = "Multi ESP",
-    Options = { "Boxes", "Names", "Health", "Tracers" },
-    Default = { "Boxes", "Names" },
-    Multi = true,
-    Flag = "esp",
-    Callback = function(list)
-        Cloud:notify({ Title = "ESP", Text = #list .. " enabled", Duration = 3 })
-    end,
-})
-
-main:keybind({
-    Text = "Toggle (rebindable)",
-    Default = Enum.KeyCode.RightShift,
-    Flag = "uikey",
-    Callback = function(key)
-        win.gui.Enabled = not win.gui.Enabled
-    end,
-})
+combat:section("Binds")
+combat:keybind({ Text = "Toggle UI", Default = Enum.KeyCode.RightShift, Flag = "uikey",
+    Callback = function() win.gui.Enabled = not win.gui.Enabled end })
+combat:keybind({ Text = "Panic Disable", Default = Enum.KeyCode.End, Flag = "panic" })
 
 ----------------------------------------------------------------------
--- visuals tab: textbox, colorpicker, label, paragraph
+-- MOVEMENT: sliders driving real character properties
 ----------------------------------------------------------------------
-vis:section("Text & Color")
+movement:section("Speed")
+handles.ws = movement:slider({ Text = "WalkSpeed", Min = 16, Max = 250, Default = 16, Flag = "ws",
+    Callback = function(v) local h = humanoid() if h then h.WalkSpeed = v end end })
+movement:slider({ Text = "JumpPower", Min = 50, Max = 500, Default = 50, Flag = "jump",
+    Callback = function(v) local h = humanoid() if h then h.JumpPower = v end end })
 
-vis:textbox({
-    Text = "Player name",
-    Placeholder = "type here...",
-    Flag = "name",
-    Callback = function(text)
-        Cloud:notify({ Title = "Textbox", Text = "Got: " .. text, Duration = 3 })
-    end,
-})
+movement:section("Camera")
+movement:slider({ Text = "FOV", Min = 70, Max = 120, Default = 70, Flag = "fov",
+    Callback = function(v) workspace.CurrentCamera.FieldOfView = v end })
 
-vis:colorpicker({
-    Text = "ESP Color",
-    Default = Color3.fromRGB(160, 176, 224),
-    Flag = "espcolor",
-    Callback = function(color)
-        -- drag the SV plane / hue bar to change this live
-    end,
-})
-
-vis:label("This is a plain label.")
-vis:divider()
-vis:paragraph({
-    Title = "Note",
-    Text = "Every animation here reuses the same slow Quad/Out easing as the "
-        .. "drag bar. Try dragging the bar at the bottom, switching tabs, and "
-        .. "expanding the dropdowns to feel it.",
-})
+movement:section("Modes")
+handles.mode = movement:dropdown({ Text = "Move Style", Options = { "Walk", "Run", "Fly", "Noclip" },
+    Default = "Walk", Multi = false, Flag = "movestyle",
+    Callback = function(c) Cloud:notify({ Title = "Move", Text = "Style: " .. tostring(c), Duration = 2 }) end })
+movement:toggle({ Text = "Auto Sprint", Flag = "sprint", Default = true })
+movement:label("Tip: drag the bar at the bottom to move the window.")
 
 ----------------------------------------------------------------------
--- settings tab: theme swap, notification queue test, preset round-trip
+-- VISUALS: dropdowns, textbox, colorpickers, paragraph
 ----------------------------------------------------------------------
-sets:section("Notifications")
+visuals:section("ESP")
+handles.esp = visuals:dropdown({ Text = "ESP Features", Options = { "Boxes", "Names", "Health", "Distance", "Tracers" },
+    Default = { "Boxes", "Names" }, Multi = true, Flag = "esp",
+    Callback = function(list) Cloud:notify({ Title = "ESP", Text = #list .. " feature(s) on", Duration = 2 }) end })
 
-sets:button({
-    Text = "Queue two toasts",
-    Callback = function()
-        Cloud:notify({ Title = "First", Text = "This one stacks on top.", Duration = 5 })
-        Cloud:notify({ Title = "Second", Text = "This slides in below it.", Duration = 5 })
-    end,
-})
+visuals:section("Colors")
+handles.boxcolor = visuals:colorpicker({ Text = "Box Color", Default = Color3.fromRGB(160, 176, 224), Flag = "boxcolor" })
+handles.namecolor = visuals:colorpicker({ Text = "Name Color", Default = Color3.fromRGB(255, 255, 255), Flag = "namecolor" })
 
-sets:section("Presets")
-sets:presetNameBox({ Text = "Preset name", Placeholder = "my preset" })
-sets:savePresetButton({ Text = "Save current settings" })
-sets:loadPresetDropdown({ Text = "Load preset" })
-
-sets:divider()
-sets:paragraph({
-    Title = "Preset round-trip",
-    Text = "1) change some controls.  2) type a name + Save.  3) change them "
-        .. "again.  4) pick the name in Load — every flag and its on-screen "
-        .. "control snaps back to the saved state.",
-})
+visuals:section("Misc")
+handles.name = visuals:textbox({ Text = "Watermark", Placeholder = "type text...", Default = "cloud",
+    Flag = "watermark", Callback = function(t) Cloud:notify({ Title = "Watermark", Text = t, Duration = 2 }) end })
+visuals:divider()
+visuals:paragraph({ Title = "About", Text = "Every control here writes to Cloud.flags and exposes :Set, "
+    .. "so the config tab can save, restore, and drive them. Expand the dropdowns and colour pickers "
+    .. "to see the staggered open animations." })
 
 ----------------------------------------------------------------------
--- ready
+-- CONFIG: presets + programmatic API demos (:Set, flags, themes)
 ----------------------------------------------------------------------
-Cloud:notify({ Title = "Cloud", Text = "Feature test loaded. Flags live in Cloud.flags", Duration = 5 })
+config:section("Presets")
+config:presetNameBox({ Text = "Preset name", Placeholder = "my preset" })
+config:savePresetButton({ Text = "Save current settings" })
+config:loadPresetDropdown({ Text = "Load preset" })
+
+config:section("Programmatic API")
+config:button({ Text = "Randomize via :Set", Callback = function()
+    handles.god:Set(math.random() > 0.5)
+    handles.ws:Set(math.random(16, 250))
+    handles.range:Set(math.random(5, 100))
+    handles.mode:Set(({ "Walk", "Run", "Fly", "Noclip" })[math.random(1, 4)])
+    handles.esp:Set({ "Health", "Tracers" })
+    handles.boxcolor:Set(Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255)))
+    handles.name:Set("randomized")
+    Cloud:notify({ Title = "API", Text = ":Set drove every control + flag.", Duration = 3 })
+end })
+config:button({ Text = "Dump flags", Callback = function()
+    local n, sample = 0, {}
+    for k in pairs(Cloud.flags) do
+        n = n + 1
+        if #sample < 4 then table.insert(sample, k) end
+    end
+    Cloud:notify({ Title = "Flags (" .. n .. ")", Text = table.concat(sample, ", "), Duration = 4 })
+end })
+config:button({ Text = "List saved presets", Callback = function()
+    local list = Cloud:listPresets()
+    Cloud:notify({ Title = "Presets", Text = #list > 0 and table.concat(list, ", ") or "none saved", Duration = 4 })
+end })
+
+config:section("Notifications")
+config:button({ Text = "Queue three toasts", Callback = function()
+    Cloud:notify({ Title = "One",   Text = "Stacks on top.",     Duration = 5 })
+    Cloud:notify({ Title = "Two",   Text = "Slides in below.",   Duration = 5 })
+    Cloud:notify({ Title = "Three", Text = "Reflow on dismiss.", Duration = 5 })
+end })
+
+config:section("Themes")
+config:button({ Text = "Open Cherry-theme window", Callback = function()
+    local cherry = Cloud:frame("Cloud", "cherry theme", Cloud.themes.Cherry)
+    local t = cherry:tab("demo")
+    t:section("Cherry palette")
+    t:toggle({ Text = "Example toggle", Default = true })
+    t:slider({ Text = "Example slider", Min = 0, Max = 100, Default = 60 })
+    t:button({ Text = "Close", Callback = function() cherry.gui:Destroy() end })
+end })
+config:paragraph({ Title = "Round-trip", Text = "Change controls, type a name + Save, hit Randomize, "
+    .. "then Load your name — every flag and on-screen control snaps back." })
+
+----------------------------------------------------------------------
+Cloud:notify({ Title = "Cloud", Text = "Comprehensive test loaded across 4 tabs.", Duration = 5 })
 
 return Cloud

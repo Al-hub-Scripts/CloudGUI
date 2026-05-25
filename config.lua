@@ -108,7 +108,7 @@ return function(shared)
         for flag, raw in pairs(decoded) do
             local value = deserialize(raw)
             if flagControls[flag] then
-                flagControls[flag].Set(value)
+                flagControls[flag]:Set(value)
             else
                 flags[flag] = value
             end

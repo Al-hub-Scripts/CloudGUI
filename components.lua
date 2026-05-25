@@ -32,10 +32,12 @@ return function(shared)
     --------------------------------------------------------------------------
     -- helpers
     --------------------------------------------------------------------------
-    local function register(opts, default, setter)
+    -- control is the component's api object, which exposes a colon :Set(value).
+    -- Stored so the preset loader can drive both the flag and the live UI.
+    local function register(opts, default, control)
         if opts and opts.Flag ~= nil then
             flags[opts.Flag] = default
-            flagControls[opts.Flag] = { Set = setter }
+            flagControls[opts.Flag] = control
         end
     end
 
@@ -174,8 +176,8 @@ return function(shared)
         end)
 
         local api = { instance = row }
-        function api.Set(value) setState(value) end
-        register(opts, state, api.Set)
+        function api:Set(value) setState(value) end
+        register(opts, state, api)
         setState(state, false)
         intro(row, ctx)
         return api
@@ -295,8 +297,8 @@ return function(shared)
         end)
 
         local api = { instance = row }
-        function api.Set(v) setValue(v) end
-        register(opts, value, api.Set)
+        function api:Set(v) setValue(v) end
+        register(opts, value, api)
         setValue(value, false, false)
         intro(row, ctx)
         return api
@@ -507,7 +509,7 @@ return function(shared)
         end)
 
         local api = { instance = container }
-        function api.Set(value, fire)
+        function api:Set(value, fire)
             if multi then
                 selected = {}
                 if type(value) == "table" then
@@ -528,7 +530,7 @@ return function(shared)
         end
 
         buildOptions()
-        register(opts, currentValue(), function(v) api.Set(v) end)
+        register(opts, currentValue(), api)
         valueLabel.Text = displayText()
         intro(container, ctx)
         return api
@@ -596,8 +598,8 @@ return function(shared)
         end)
 
         local api = { instance = row }
-        function api.Set(key) setKey(key, false) end
-        register(opts, current, function(k) setKey(k) end)
+        function api:Set(key) setKey(key, false) end
+        register(opts, current, api)
         intro(row, ctx)
         return api
     end
@@ -652,9 +654,9 @@ return function(shared)
         end)
 
         local api = { instance = row }
-        function api.Set(text) setText(text, false) end
+        function api:Set(text) setText(text, false) end
         api.Get = function() return box.Text end
-        register(opts, box.Text, api.Set)
+        register(opts, box.Text, api)
         intro(row, ctx)
         return api
     end
@@ -892,14 +894,14 @@ return function(shared)
         end)
 
         local api = { instance = container }
-        function api.Set(c)
+        function api:Set(c)
             if typeof(c) == "Color3" then
                 color = c
                 h, s, v = c:ToHSV()
-                commit(false)
+                commit()
             end
         end
-        register(opts, color, function(c) api.Set(c); if opts.Callback then opts.Callback(color) end end)
+        register(opts, color, api)
         applyVisual()
         intro(container, ctx)
         return api
@@ -925,7 +927,7 @@ return function(shared)
             create("UIPadding", { PaddingLeft = UDim.new(0, 4) }),
         })
         local api = { instance = lbl }
-        function api.Set(t) lbl.Text = t end
+        function api:Set(t) lbl.Text = t end
         intro(lbl, ctx)
         return api
     end
@@ -1045,7 +1047,7 @@ return function(shared)
         })
 
         local api = { instance = row }
-        function api.Set(t) bodyLbl.Text = t end
+        function api:Set(t) bodyLbl.Text = t end
         intro(row, ctx)
         return api
     end
